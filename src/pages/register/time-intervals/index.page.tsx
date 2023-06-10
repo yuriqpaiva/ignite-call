@@ -8,6 +8,7 @@ import {
 } from '@ignite-ui/react'
 import { Container, Header } from '../styles'
 import {
+  FormError,
   IntervalBox,
   IntervalDay,
   IntervalInputs,
@@ -19,6 +20,9 @@ import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { getWeekDays } from '@/utils/get-week-days'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { convertTimeStringToMinutes } from '@/utils/convert-time-string-to-minutes'
+import { api } from '@/lib/axios'
+import { useRouter } from 'next/router'
 
 const timeIntervalsFormSchema = z.object({
   intervals: z
@@ -31,10 +35,41 @@ const timeIntervalsFormSchema = z.object({
       }),
     )
     .length(7)
-    .transform((intervals) => intervals.filter((interval) => interval.enabled)),
+    // Get only enabled intervals:
+    .transform((intervals) => intervals.filter((interval) => interval.enabled))
+
+    // Check if there is at least one enabled interval: (with refine we can add a custom error message)
+    .refine((intervals) => intervals.length > 0, {
+      message: 'Você precisa selecionar pelo menos um dia da semana.',
+    })
+    .transform((intervals) => {
+      return intervals.map((interval) => {
+        return {
+          weekDay: interval.weekDay,
+          startTimeInMinutes: convertTimeStringToMinutes(interval.startTime),
+          endTimeInMinutes: convertTimeStringToMinutes(interval.endTime),
+        }
+      })
+    })
+    .refine(
+      (intervals) => {
+        return intervals.every(
+          (interval) =>
+            interval.endTimeInMinutes - 60 >= interval.startTimeInMinutes,
+        )
+      },
+      {
+        message:
+          'O horário de término deve ser pelo menos 1h distante do início',
+      },
+    ),
 })
 
-type TimeIntervalsFormData = z.infer<typeof timeIntervalsFormSchema>
+// Before transforms:
+type TimeIntervalsFormInput = z.input<typeof timeIntervalsFormSchema>
+
+// After transforms:
+type TimeIntervalsFormOutput = z.infer<typeof timeIntervalsFormSchema>
 
 export default function TimeIntervals() {
   const {
@@ -43,7 +78,7 @@ export default function TimeIntervals() {
     control,
     watch,
     formState: { isSubmitting, errors },
-  } = useForm({
+  } = useForm<TimeIntervalsFormInput>({
     resolver: zodResolver(timeIntervalsFormSchema),
     defaultValues: {
       intervals: [
@@ -58,6 +93,8 @@ export default function TimeIntervals() {
     },
   })
 
+  const router = useRouter()
+
   const weekDays = getWeekDays()
 
   const { fields } = useFieldArray({
@@ -67,8 +104,10 @@ export default function TimeIntervals() {
 
   const intervals = watch('intervals')
 
-  function handleSetTimeIntervals(data: TimeIntervalsFormData) {
-    console.log(data)
+  async function handleSetTimeIntervals(data: TimeIntervalsFormOutput) {
+    await api.post('users/time-intervals', data)
+
+    await router.push('/register/update-profile')
   }
 
   return (
@@ -82,7 +121,10 @@ export default function TimeIntervals() {
         <MultiStep size={4} currentStep={3} />
       </Header>
 
-      <IntervalBox as="form" onSubmit={handleSubmit(handleSetTimeIntervals)}>
+      <IntervalBox
+        as="form"
+        onSubmit={handleSubmit(handleSetTimeIntervals as any)}
+      >
         <IntervalsContainer>
           {fields.map((field, index) => (
             <IntervalItem key={field.id}>
@@ -109,21 +151,25 @@ export default function TimeIntervals() {
                   type="time"
                   step={60}
                   disabled={intervals[index].enabled === false}
-                  {...register(`intervals.${index}`)}
+                  {...register(`intervals.${index}.startTime`)}
                 />
                 <TextInput
                   size="sm"
                   type="time"
                   step={60}
                   disabled={intervals[index].enabled === false}
-                  {...register(`intervals.${index}`)}
+                  {...register(`intervals.${index}.endTime`)}
                 />
               </IntervalInputs>
             </IntervalItem>
           ))}
         </IntervalsContainer>
 
-        <Button type="submit">
+        {errors.intervals && (
+          <FormError size="sm">{errors.intervals.message}</FormError>
+        )}
+
+        <Button type="submit" disabled={isSubmitting}>
           Próximo passo <ArrowRight />
         </Button>
       </IntervalBox>
