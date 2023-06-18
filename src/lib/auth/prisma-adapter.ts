@@ -136,10 +136,10 @@ export function PrismaAdapter(
           type: account.type,
           provider: account.provider,
           provider_account_id: account.providerAccountId,
-          refresh_token: account.refreshToken as string,
-          access_token: account.accessToken as string,
+          refresh_token: account.refresh_token,
+          access_token: account.access_token,
           expires_at: account.expires_at,
-          token_type: account.tokenType as string,
+          token_type: account.token_type,
           scope: account.scope,
           id_token: account.id_token,
           session_state: account.session_state,
@@ -163,7 +163,7 @@ export function PrismaAdapter(
       }
     },
     async getSessionAndUser(sessionToken) {
-      const session = await prisma.session.findUniqueOrThrow({
+      const session = await prisma.session.findUnique({
         where: {
           session_token: sessionToken,
         },
