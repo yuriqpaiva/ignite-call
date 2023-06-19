@@ -13,6 +13,8 @@
 
 Ignite Call is an application that allows users to create a custom calendar with available dates and times for scheduling events, using Google OAuth2 and Google Calendar API integration.
 
+Create your **custom calendar** URL and share with others to schedule events with you in a simple and easy way.
+
 ## 🚀 Features
 
 1. **Google OAuth2 Integration:** Users can sign in using their Google account.
